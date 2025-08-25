@@ -1,0 +1,38 @@
+{
+  "name": "tjrj_concurso",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "node-fetch": "^3.3.2"
+  },
+  "routes": {
+    "/": {
+      "get": {
+        "description": "Responds with a message indicating the backend is running.",
+        "responses": {
+          "200": {
+            "description": "A message indicating the backend is running.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "Backend Gemini rodando!"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

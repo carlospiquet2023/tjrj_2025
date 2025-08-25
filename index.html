@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Aprovação TJ-RJ (FGV) com Professor IA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals (Slate, Cyan) -->
+    <!-- Application Structure Plan: A dashboard-centric SPA. The main screen features an interactive bar chart showing subject weights from Table 1. Clicking a bar dynamically updates a detail panel. A sticky navigation bar allows users to jump to detailed sections presented in collapsible accordion panels to manage information density. This structure was chosen to immediately highlight the most critical strategic data (subject importance) and allow users to drill down into details as needed, promoting active exploration. A new AI Tutor chat section has been added at the end to provide interactive, on-demand support. -->
+    <!-- Visualization & Content Choices: 1. Report Info: Table 1 (Subject Incidence %). Goal: Compare priorities. Viz: Interactive Bar Chart. Interaction: Click bar to update detail view. Justification: Better for comparing discrete values than a pie chart; interaction connects quantitative data to qualitative advice. Library: Chart.js (Canvas). 2. Report Info: Detailed subject matter. Goal: Organize/Inform. Viz: Collapsible Accordion Panels. Interaction: Click to expand/collapse. Justification: Manages large amounts of text, preventing user overload. Method: HTML/CSS/JS. 3. Report Info: User queries. Goal: Provide expert answers. Viz: Chat Interface. Interaction: User input triggers API call to a generative model. Justification: Creates a dynamic and personalized learning experience. Method: JS Fetch API to Gemini. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 400px;
+            max-height: 500px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 500px;
+            }
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s cubic-bezier(.4,0,.2,1);
+        }
+        .detail-card {
+            transition: box-shadow 0.3s, transform 0.3s;
+        }
+        .detail-card:focus-within, .detail-card:hover {
+            box-shadow: 0 8px 32px 0 rgba(6,182,212,0.15);
+            transform: scale(1.02);
+        }
+        .chat-bubble-user {
+            background-color: #0891b2;
+            color: white;
+            border: 2px solid #0e7490;
+        }
+        .chat-bubble-ai {
+            background-color: #e2e8f0;
+            color: #1e293b;
+            border: 2px solid #bae6fd;
+        }
+        .chat-bubble-user:focus, .chat-bubble-ai:focus {
+            outline: 2px solid #06b6d4;
+        }
+        .typing-indicator span {
+            animation: blink 1.4s infinite both;
+        }
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        @keyframes blink {
+            0% { opacity: 0.2; }
+            20% { opacity: 1; }
+            100% { opacity: 0.2; }
+        }
+        /* Feedback visual para botões */
+        button, .accordion-header {
+            transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+        }
+        button:focus, .accordion-header:focus {
+            outline: 2px solid #06b6d4;
+            outline-offset: 2px;
+        }
+        button:active, .accordion-header:active {
+            background: #bae6fd;
+        }
+        .accordion-header:hover {
+            background: #f0f9ff;
+            color: #0891b2;
+        }
+        /* Responsividade extra */
+        @media (max-width: 640px) {
+            .detail-card, .chart-container, .accordion-item {
+                box-shadow: none;
+                padding: 0.5rem;
+            }
+            .chat-bubble-user, .chat-bubble-ai {
+                font-size: 0.95rem;
+                padding: 0.5rem;
+            }
+        }
+        /* Acessibilidade extra */
+        [aria-label], [role] {
+            outline: none;
+        }
+    </style>
+</head>
+<body class="text-slate-700">
+
+    <header class="bg-white shadow-md sticky top-0 z-50">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <h1 class="font-bold text-xl text-cyan-700">Painel de Aprovação TJ-RJ</h1>
+            <div class="hidden md:flex space-x-8">
+                <a href="#dashboard" class="text-slate-600 hover:text-cyan-600 font-medium">Dashboard</a>
+                <a href="#disciplinas" class="text-slate-600 hover:text-cyan-600 font-medium">Disciplinas</a>
+                <a href="#tutor" class="text-slate-600 hover:text-cyan-600 font-medium">Professor IA</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="container mx-auto px-6 py-10" aria-label="Conteúdo principal">
+
+    <section id="intro" class="text-center mb-16" aria-label="Introdução">
+            <h2 class="text-4xl md:text-5xl font-bold text-slate-900 mb-4">Seu Manual Tático Interativo</h2>
+            <div class="max-w-2xl mx-auto text-cyan-700 text-base mb-4 bg-cyan-50 rounded-lg p-3 border border-cyan-100">
+                <span class="font-semibold">Como usar:</span> Navegue pelo dashboard, clique nas barras para ver detalhes, expanda as disciplinas para dicas e use o chat para tirar dúvidas com o Professor IA.
+            </div>
+            <p class="max-w-3xl mx-auto text-lg text-slate-600">
+                Transformamos o Dossiê de Aprovação em uma ferramenta dinâmica. Visualize a importância de cada matéria, explore os tópicos essenciais e construa seu caminho para a nota máxima no concurso do TJ-RJ.
+            </p>
+        </section>
+
+    <section id="dashboard" class="mb-20" aria-label="Dashboard estratégico">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold text-slate-900">Dashboard Estratégico: O Mapa da Mina</h2>
+                <p class="max-w-3xl mx-auto text-slate-600 mt-2">
+                    O gráfico abaixo revela o peso de cada disciplina na prova de Técnico (2014). Um bom desempenho nas matérias de maior peso é o caminho mais curto para a aprovação. **Clique em uma barra** para ver a análise estratégica detalhada.
+                </p>
+            </div>
+
+            <div class="grid lg:grid-cols-3 gap-8 items-start" role="region" aria-label="Gráfico de incidência e detalhes">
+                <div class="lg:col-span-2 bg-white p-6 rounded-lg shadow-lg" aria-label="Gráfico de incidência das disciplinas">
+                    <div class="chart-container">
+                        <canvas id="incidenceChart"></canvas>
+                    </div>
+                </div>
+                <div id="subject-details" class="detail-card bg-white p-6 rounded-lg shadow-lg sticky top-24" tabindex="0" aria-label="Detalhes da disciplina selecionada">
+                    <h3 id="details-title" class="text-2xl font-bold text-cyan-700 mb-2">Selecione uma Matéria</h3>
+                    <p id="details-percentage" class="text-lg font-semibold text-slate-500 mb-4"></p>
+                    <div class="w-full bg-slate-200 rounded-full h-2.5 mb-4">
+                        <div id="details-progress" class="bg-cyan-600 h-2.5 rounded-full" style="width: 0%"></div>
+                    </div>
+                    <p id="details-focus" class="text-slate-700"></p>
+                </div>
+            </div>
+        </section>
+
+    <section id="disciplinas" class="mb-16" aria-label="Disciplinas detalhadas">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold text-slate-900">Análise Detalhada das Disciplinas</h2>
+                <p class="max-w-3xl mx-auto text-slate-600 mt-2">
+                    Aprofunde-se nos tópicos mais cobrados pela FGV. Use esta seção como seu guia de estudo diário para cada matéria fundamental.
+                </p>
+            </div>
+            <div class="space-y-4 max-w-4xl mx-auto" role="list" aria-label="Lista de disciplinas">
+                <div class="accordion-item bg-white rounded-lg shadow-md" role="listitem">
+                    <button class="accordion-header w-full text-left p-5 font-semibold text-lg flex justify-between items-center text-slate-800" aria-expanded="false" aria-controls="fundamentais-content">
+                        <span>🧠 Conhecimentos Fundamentais (Português e RLM)</span>
+                        <span class="transform transition-transform duration-300 text-cyan-600 text-2xl font-light">+</span>
+                    </button>
+                    <div class="accordion-content" id="fundamentais-content" aria-hidden="true">
+                        <div class="p-5 border-t border-slate-200 space-y-6">
+                            <div>
+                                <h4 class="font-bold text-cyan-700 text-lg mb-2">Língua Portuguesa: A Disciplina que Elimina e Aprova</h4>
+                                <p class="mb-2">Foco total em interpretação, semântica e como a gramática constrói o sentido do texto. A FGV testa raciocínio, não memorização de regras isoladas. Os tópicos de maior incidência são: Interpretação, Semântica (sinônimos, antônimos, polissemia), Coesão (conjunções, pronomes) e Gramática aplicada (Pontuação, Crase, Concordância).</p>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-cyan-700 text-lg mb-2">Raciocínio Lógico-Matemático: Pontos Preciosos</h4>
+                                <p>Domine a Lógica Proposicional: tabela-verdade, negações e equivalências. Treine os tipos de problemas mais comuns: Associação Lógica (use tabelas), Verdades e Mentiras (teste hipóteses) e Sequências Lógicas (identifique o padrão).</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item bg-white rounded-lg shadow-md" role="listitem">
+                    <button class="accordion-header w-full text-left p-5 font-semibold text-lg flex justify-between items-center text-slate-800" aria-expanded="false" aria-controls="direito-content">
+                        <span>⚖️ Direito Constitucional e Administrativo</span>
+                        <span class="transform transition-transform duration-300 text-cyan-600 text-2xl font-light">+</span>
+                    </button>
+                    <div class="accordion-content" id="direito-content" aria-hidden="true">
+                        <div class="p-5 border-t border-slate-200 space-y-6">
+                            <div>
+                                <h4 class="font-bold text-cyan-700 text-lg mb-2">Direito Constitucional Aplicado</h4>
+                                <ul class="list-disc list-inside text-slate-700 space-y-1">
+                                    <li>**Art. 5º:** Domínio absoluto. Foco nos Remédios Constitucionais.</li>
+                                    <li>**Administração Pública (Art. 37 a 41):** Princípios (LIMPE), concurso, acumulação de cargos.</li>
+                                    <li>**Poder Judiciário (Art. 92 a 126):** Estrutura, competências e CNJ.</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-cyan-700 text-lg mb-2">Direito Administrativo na Prática</h4>
+                                <ul class="list-disc list-inside text-slate-700 space-y-1">
+                                    <li>**Atos Administrativos:** Elementos (COFIFOMO), Atributos (PATI), Anulação vs. Revogação.</li>
+                                    <li>**Licitações (Lei 14.133/21):** Modalidades e contratação direta.</li>
+                                    <li>**Poderes da Administração:** Foco em Poder de Polícia e na diferença entre ato vinculado e discricionário.</li>
+                                    <li>**Responsabilidade Civil do Estado:** Teoria do risco administrativo.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item bg-white rounded-lg shadow-md" role="listitem">
+                    <button class="accordion-header w-full text-left p-5 font-semibold text-lg flex justify-between items-center text-slate-800" aria-expanded="false" aria-controls="processual-content">
+                        <span>🏛️ Direito Processual (Civil e Penal)</span>
+                        <span class="transform transition-transform duration-300 text-cyan-600 text-2xl font-light">+</span>
+                    </button>
+                    <div class="accordion-content" id="processual-content" aria-hidden="true">
+                        <div class="p-5 border-t border-slate-200 space-y-6">
+                             <div>
+                                <h4 class="font-bold text-cyan-700 text-lg mb-2">Direito Processual Civil: A Rotina do Cartório</h4>
+                                <ul class="list-disc list-inside text-slate-700 space-y-1">
+                                    <li>**Atos Processuais:** Comunicação (citação, intimação) e contagem de Prazos (dias úteis).</li>
+                                    <li>**Procedimento Comum:** Foco na Resposta do Réu (contestação, revelia).</li>
+                                    <li>**Recursos:** Conceito e principais espécies (Apelação, Agravo de Instrumento).</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-cyan-700 text-lg mb-2">Direito Processual Penal Estratégico</h4>
+                                <ul class="list-disc list-inside text-slate-700 space-y-1">
+                                    <li>**Inquérito Policial:** Características (escrito, sigiloso, inquisitivo).</li>
+                                    <li>**Ação Penal:** Diferença entre pública e privada.</li>
+                                    <li>**Prisão e Medidas Cautelares:** Hipóteses de prisão em flagrante, preventiva e temporária.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item bg-white rounded-lg shadow-md" role="listitem">
+                    <button class="accordion-header w-full text-left p-5 font-semibold text-lg flex justify-between items-center text-slate-800" aria-expanded="false" aria-controls="legislacao-content">
+                        <span>📜 Legislação Específica do TJ-RJ</span>
+                        <span class="transform transition-transform duration-300 text-cyan-600 text-2xl font-light">+</span>
+                    </button>
+                    <div class="accordion-content" id="legislacao-content" aria-hidden="true">
+                        <div class="p-5 border-t border-slate-200 space-y-6">
+                             <div>
+                                <h4 class="font-bold text-cyan-700 text-lg mb-2">O DNA do Tribunal: Pontos Decisivos</h4>
+                                <p class="mb-2">A cobrança aqui tende a ser mais literal, exigindo leitura atenta e memorização dos dispositivos mais importantes para a rotina do tribunal.</p>
+                                <ul class="list-disc list-inside text-slate-700 space-y-1">
+                                    <li>**CODJERJ:** Foco na estrutura do tribunal, competência dos órgãos e atribuições da Corregedoria.</li>
+                                    <li>**Consolidação Normativa:** Foco nas rotinas de cartório (atos dos servidores, comunicação processual, arquivamento).</li>
+                                    <li>**Regime Jurídico (Estatuto e Plano de Carreira):** Direitos, deveres, proibições, formas de provimento e desenvolvimento na carreira.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    <section id="tutor" class="mb-16" aria-label="Professor IA">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold text-slate-900">Professor Interativo IA</h2>
+                <p class="max-w-3xl mx-auto text-slate-600 mt-2">
+                    Tire suas dúvidas com um especialista na banca FGV. Pergunte sobre qualquer matéria, peça exemplos ou dicas de estudo.
+                </p>
+            </div>
+            <div class="max-w-3xl mx-auto bg-white rounded-lg shadow-lg p-4" aria-label="Chat com Professor IA">
+                <div id="chat-window" class="h-96 overflow-y-auto p-4 space-y-4 mb-4 border rounded-md">
+                    <div class="flex justify-start">
+                        <div class="chat-bubble-ai p-3 rounded-lg max-w-md">
+                            Olá! Eu sou seu tutor de IA, especialista no concurso TJ-RJ e na banca FGV. Em que posso ajudar hoje? 🧑‍🏫
+                        </div>
+                    </div>
+                </div>
+                <div class="flex">
+                    <input type="text" id="chat-input" class="flex-grow border rounded-l-md p-3 focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Digite sua pergunta aqui..." aria-label="Campo de pergunta para o Professor IA">
+                    <button id="chat-send" class="bg-cyan-600 text-white px-6 rounded-r-md hover:bg-cyan-700 transition-colors" aria-label="Enviar pergunta">Enviar</button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="bg-slate-800 text-slate-300 text-center py-5 mt-10">
+        <p>&copy; 2025 Painel de Aprovação. Foco, disciplina e estratégia!</p>
+        <p class="mt-2 text-xs text-slate-400">Desenvolvimento: Carlos Antonio de Oliveira Piquet</p>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const subjectData = [
+                { name: 'Língua Portuguesa', percentage: 30, focus: 'Prioridade CRÍTICA. O foco é total em Raciocínio, Interpretação e Semântica. A FGV usa português para testar a capacidade cognitiva do candidato.', color: '#06b6d4' },
+                { name: 'Direito Processual Civil', percentage: 15, focus: 'Prioridade CRÍTICA. Estude com foco na Aplicação e nos Procedimentos Práticos do dia a dia de um tribunal.', color: '#22d3ee' },
+                { name: 'Direito Processual Penal', percentage: 15, focus: 'Prioridade CRÍTICA. Assim como Processo Civil, o foco é na Aplicação e nos Procedimentos Práticos da área criminal.', color: '#67e8f9' },
+                { name: 'Direito Administrativo', percentage: 10, focus: 'Prioridade ALTA. A banca cobra a Aplicação da teoria em Casos Concretos, simulando situações reais.', color: '#a5f3fc' },
+                { name: 'Direito Constitucional', percentage: 10, focus: 'Prioridade ALTA. Foco na Aplicação, especialmente em Direitos Fundamentais e na estrutura do Estado.', color: '#cffafe' },
+                { name: 'Raciocínio Lógico', percentage: 10, focus: 'Prioridade MÉDIA. Concentre-se em Lógica Proposicional e técnicas de Resolução de Problemas.', color: '#e0f2fe' },
+                { name: 'Legislação Específica', percentage: 10, focus: 'Prioridade MÉDIA. Exige Memorização Direcionada das regras internas do TJ-RJ.', color: '#f0f9ff' }
+            ];
+
+            const ctx = document.getElementById('incidenceChart').getContext('2d');
+            const incidenceChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: subjectData.map(d => d.name),
+                    datasets: [{
+                        label: '% da Prova (Técnico 2014)',
+                        data: subjectData.map(d => d.percentage),
+                        backgroundColor: ['rgba(6, 182, 212, 0.7)','rgba(34, 211, 238, 0.7)','rgba(103, 232, 249, 0.7)','rgba(165, 243, 252, 0.7)','rgba(207, 250, 254, 0.7)','rgba(224, 242, 254, 0.7)','rgba(240, 249, 255, 0.7)'],
+                        borderColor: ['#06b6d4','#22d3ee','#67e8f9','#a5f3fc','#cffafe','#e0f2fe','#f0f9ff'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => ` Peso: ${c.parsed.x}%` } } },
+                    scales: { x: { beginAtZero: true, title: { display: true, text: 'Percentual de Incidência na Prova (%)' } } },
+                    onClick: (e, el) => { if (el.length > 0) updateDetails(subjectData[el[0].index]); }
+                }
+            });
+
+            const detailsTitle = document.getElementById('details-title');
+            const detailsPercentage = document.getElementById('details-percentage');
+            const detailsFocus = document.getElementById('details-focus');
+            const detailsProgress = document.getElementById('details-progress');
+
+            function updateDetails(data) {
+                detailsTitle.textContent = data.name;
+                detailsPercentage.textContent = `Peso na prova: ${data.percentage}%`;
+                detailsFocus.textContent = data.focus;
+                detailsProgress.style.width = `${data.percentage}%`;
+            }
+            
+            updateDetails({ name: 'Selecione uma Matéria', percentage: 'Clique em uma barra do gráfico', focus: 'Veja aqui a análise estratégica e o foco de estudo recomendado para a matéria selecionada.' });
+
+            const accordions = document.querySelectorAll('.accordion-item');
+            accordions.forEach(item => {
+                const header = item.querySelector('.accordion-header');
+                const content = item.querySelector('.accordion-content');
+                const icon = header.querySelector('span:last-child');
+                header.addEventListener('click', () => {
+                    const isOpen = content.style.maxHeight && content.style.maxHeight !== '0px';
+                    accordions.forEach(other => {
+                        other.querySelector('.accordion-content').style.maxHeight = '0px';
+                        other.querySelector('.accordion-header span:last-child').textContent = '+';
+                    });
+                    if (!isOpen) {
+                        content.style.maxHeight = content.scrollHeight + 'px';
+                        icon.textContent = '-';
+                    }
+                });
+            });
+
+            const chatWindow = document.getElementById('chat-window');
+            const chatInput = document.getElementById('chat-input');
+            const chatSend = document.getElementById('chat-send');
+
+            const handleSendMessage = async () => {
+                const userMessage = chatInput.value.trim();
+                if (!userMessage) return;
+
+                appendMessage(userMessage, 'user');
+                chatInput.value = '';
+                showTypingIndicator();
+
+                try {
+                    const aiResponse = await getAIResponse(userMessage);
+                    removeTypingIndicator();
+                    appendMessage(aiResponse, 'ai');
+                } catch (error) {
+                    removeTypingIndicator();
+                    appendMessage('Desculpe, ocorreu um erro ao conectar com o Professor IA. Tente novamente mais tarde.', 'ai');
+                    console.error("Error fetching AI response:", error);
+                }
+            };
+
+            chatSend.addEventListener('click', handleSendMessage);
+            chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') handleSendMessage();
+            });
+
+            function formatAIResponse(message) {
+                let formattedMessage = message.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+                formattedMessage = formattedMessage.replace(/\n/g, '<br>');
+                return formattedMessage;
+            }
+
+            function appendMessage(message, sender) {
+                const messageWrapper = document.createElement('div');
+                messageWrapper.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
+                
+                const messageBubble = document.createElement('div');
+                messageBubble.className = `p-3 rounded-lg max-w-md ${sender === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'}`;
+                
+                if (sender === 'ai') {
+                    messageBubble.innerHTML = formatAIResponse(message);
+                } else {
+                    messageBubble.textContent = message;
+                }
+
+                messageWrapper.appendChild(messageBubble);
+                chatWindow.appendChild(messageWrapper);
+                chatWindow.scrollTop = chatWindow.scrollHeight;
+            }
+
+            function showTypingIndicator() {
+                const indicatorWrapper = document.createElement('div');
+                indicatorWrapper.id = 'typing-indicator';
+                indicatorWrapper.className = 'flex justify-start';
+                indicatorWrapper.innerHTML = `
+                    <div class="chat-bubble-ai p-3 rounded-lg max-w-md">
+                        <div class="typing-indicator">
+                            <span class="inline-block w-2 h-2 bg-slate-500 rounded-full"></span>
+                            <span class="inline-block w-2 h-2 bg-slate-500 rounded-full"></span>
+                            <span class="inline-block w-2 h-2 bg-slate-500 rounded-full"></span>
+                        </div>
+                    </div>
+                `;
+                chatWindow.appendChild(indicatorWrapper);
+                chatWindow.scrollTop = chatWindow.scrollHeight;
+            }
+
+            function removeTypingIndicator() {
+                const indicator = document.getElementById('typing-indicator');
+                if (indicator) indicator.remove();
+            }
+
+            async function getAIResponse(userPrompt) {
+                const response = await fetch('/api/gemini', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userPrompt })
+                });
+                if (!response.ok) {
+                    throw new Error(`API request failed with status ${response.status}`);
+                }
+                const result = await response.json();
+                return result.answer;
+            }
+        });
+    </script>
+</body>
+</html>
